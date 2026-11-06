@@ -1,0 +1,1769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Event Time Keeper</title>
+<!-- Supabase JS Client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+:root {
+    --white: #ffffff;
+    --glass: rgba(255,255,255,0.12);
+    --border: rgba(255,255,255,0.2);
+    --accent: #a78bfa;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    color: white;
+    background:
+        radial-gradient(circle at 10% 20%, #6655bc 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, #087e9c 0%, transparent 40%),
+        linear-gradient(135deg, #17142f, #202e50, #102e42);
+    overflow: hidden;
+}
+
+/* MAIN LAYOUT */
+.container {
+    display: flex;
+    height: 100vh;
+    padding: 18px;
+    gap: 16px;
+}
+
+/* GLASS EFFECT */
+.glass {
+    background: var(--glass);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+/* LEFT SIDEBAR */
+.sidebar {
+    width: 28%;
+    min-width: 320px;
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.logo {
+    font-size: 21px;
+    font-weight: 800;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.subtitle {
+    color: rgba(255,255,255,0.6);
+    font-size: 12px;
+    margin-bottom: 14px;
+}
+
+/* EVENT SELECTOR / CLOUD BAR */
+.event-selector-box {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 14px;
+    padding: 10px;
+    margin-bottom: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.event-selector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 0.5px;
+}
+
+.event-selector-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.event-dropdown {
+    flex: 1;
+    background: rgba(18, 16, 38, 0.7);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.event-dropdown option {
+    background: #1e1b4b;
+    color: #fff;
+}
+
+.icon-btn {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    padding: 6px 9px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn:hover {
+    background: rgba(167,139,250,0.35);
+    border-color: var(--accent);
+}
+
+.icon-btn.danger:hover {
+    background: rgba(239, 68, 68, 0.4);
+    border-color: #ef4444;
+}
+
+.schedule-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.schedule-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.55);
+}
+
+.header-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.add-btn, .json-btn {
+    padding: 5px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    transition: 0.2s;
+    font-family: inherit;
+}
+
+.add-btn {
+    background: rgba(167,139,250,0.25);
+    border: 1px solid rgba(196,181,253,0.45);
+}
+
+.add-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(167,139,250,0.4);
+}
+
+.json-btn {
+    background: rgba(56, 189, 248, 0.2);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.json-btn:hover {
+    transform: translateY(-1px);
+    background: rgba(56, 189, 248, 0.35);
+}
+
+/* SCHEDULE LIST WITH THRESHOLD SCROLLING */
+.schedule-list {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    gap: 6px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scroll-behavior: smooth;
+}
+
+.schedule-list::-webkit-scrollbar {
+    width: 5px;
+}
+
+.schedule-list::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.04);
+    border-radius: 10px;
+}
+
+.schedule-list::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.25);
+    border-radius: 10px;
+}
+
+.schedule-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.4);
+}
+
+.activity {
+    padding: 8px 11px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.03);
+    transition: all 0.2s ease;
+    flex: 0 0 auto;
+    min-height: 58px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+}
+
+.activity:hover {
+    border-color: rgba(167,139,250,0.4);
+    background: rgba(255,255,255,0.07);
+    transform: translateX(2px);
+}
+
+.activity-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    margin-bottom: 4px;
+}
+
+.activity-time-inputs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+}
+
+.time-input {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.95);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 5px;
+    border-radius: 5px;
+    width: 48px;
+    text-align: center;
+    outline: none;
+    transition: 0.2s;
+}
+
+.time-input:focus {
+    background: rgba(255,255,255,0.18);
+    border-color: var(--accent);
+}
+
+.duration-badge {
+    font-size: 10px;
+    color: rgba(255,255,255,0.5);
+    margin-left: 2px;
+    white-space: nowrap;
+}
+
+.delete-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.35);
+    font-size: 12px;
+    padding: 2px 5px;
+    border-radius: 5px;
+    cursor: pointer;
+    line-height: 1;
+    transition: 0.2s;
+}
+
+.delete-btn:hover:not(:disabled) {
+    color: #fca5a5;
+    background: rgba(248,113,113,0.15);
+}
+
+.delete-btn:disabled {
+    opacity: 0.15;
+    cursor: not-allowed;
+}
+
+.activity-bottom-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.name-input {
+    background: transparent;
+    border: 1px solid transparent;
+    color: white;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    width: 100%;
+    padding: 2px 4px;
+    margin-left: -4px;
+    border-radius: 5px;
+    outline: none;
+    transition: 0.2s;
+}
+
+.name-input:hover {
+    border-color: rgba(255,255,255,0.12);
+}
+
+.name-input:focus {
+    background: rgba(255,255,255,0.12);
+    border-color: var(--accent);
+}
+
+.completed-check {
+    display: none;
+    color: #86efac;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.activity.active {
+    background: rgba(167,139,250,0.24);
+    border: 1px solid rgba(196,181,253,0.6);
+    box-shadow: 0 0 20px rgba(167,139,250,0.12);
+}
+
+.activity.active .name-input {
+    color: #ddd0ff;
+}
+
+.activity.completed {
+    opacity: 0.5;
+}
+
+.activity.completed .completed-check {
+    display: inline;
+}
+
+/* RIGHT MAIN PANEL */
+.main {
+    flex: 1;
+    padding: 30px 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    text-align: center;
+    overflow-y: auto;
+}
+
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+}
+
+.top-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.fullscreen-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.22);
+    color: rgba(255,255,255,0.92);
+    padding: 6px 13px;
+    border-radius: 9px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: inherit;
+    letter-spacing: 0.5px;
+}
+
+.fullscreen-btn:hover {
+    background: rgba(167,139,250,0.3);
+    border-color: var(--accent);
+    color: #fff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(167,139,250,0.25);
+}
+
+.event-label {
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.55);
+}
+
+.clock {
+    font-size: 14px;
+    color: rgba(255,255,255,0.75);
+}
+
+/* TIMER CONTENT */
+.timer-content {
+    margin: auto 0;
+    padding: 25px 0;
+}
+
+.status {
+    display: inline-block;
+    padding: 9px 18px;
+    border-radius: 30px;
+    background: rgba(167,139,250,0.2);
+    border: 1px solid rgba(196,181,253,0.35);
+    font-size: 12px;
+    letter-spacing: 2px;
+    font-weight: 700;
+    margin-bottom: 25px;
+}
+
+.activity-heading {
+    font-size: clamp(30px, 5vw, 60px);
+    font-weight: 800;
+    line-height: 1.2;
+    max-width: 920px;
+    margin: 0 auto 20px;
+    background: linear-gradient(90deg, #fff, #d6c8ff, #a5e7ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    transition: font-size 0.2s ease;
+    word-break: break-word;
+}
+
+.time-left-label {
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.55);
+    margin-bottom: 15px;
+}
+
+.timer {
+    font-size: clamp(75px, 13vw, 150px);
+    font-weight: 800;
+    letter-spacing: -6px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    text-shadow: 0 0 50px rgba(167,139,250,0.25);
+}
+
+.timer.warning {
+    color: #fca5a5;
+    text-shadow: 0 0 40px rgba(248,113,113,0.3);
+}
+
+.activity-info {
+    margin-top: 25px;
+    color: rgba(255,255,255,0.65);
+    font-size: 14px;
+}
+
+/* PROGRESS */
+.progress-section {
+    max-width: 650px;
+    width: 100%;
+    margin: 30px auto 0;
+}
+
+.progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: rgba(255,255,255,0.55);
+    margin-bottom: 10px;
+}
+
+.progress-bar {
+    height: 7px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #a78bfa, #67e8f9);
+    border-radius: 20px;
+    transition: width 0.3s;
+}
+
+/* CONTROLS */
+.controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.controls button {
+    padding: 15px 28px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.2);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: 0.25s;
+    color: white;
+    background: rgba(255,255,255,0.12);
+}
+
+.controls button:hover:not(:disabled) {
+    transform: translateY(-3px);
+    background: rgba(255,255,255,0.22);
+}
+
+.controls button.primary {
+    background: linear-gradient(135deg, #9b7af7, #6e8cf5);
+    border: none;
+    box-shadow: 0 5px 25px rgba(125,100,240,0.3);
+}
+
+.controls button.primary:hover:not(:disabled) {
+    box-shadow: 0 8px 35px rgba(125,100,240,0.5);
+}
+
+.controls button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* NOTIFICATION TOAST */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: rgba(18, 16, 38, 0.95);
+    border: 1px solid var(--accent);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 13px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s ease;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* MODAL */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modal-overlay.open {
+    display: flex;
+}
+
+.modal {
+    width: 90%;
+    max-width: 440px;
+    padding: 24px;
+    border-radius: 20px;
+    background: #17142f;
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.modal.large-modal {
+    max-width: 580px;
+}
+
+.modal h3 {
+    margin-bottom: 12px;
+    font-size: 18px;
+}
+
+.modal p.hint {
+    font-size: 12px;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.modal input, .modal textarea {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    font-size: 13px;
+    margin-bottom: 16px;
+    outline: none;
+    font-family: inherit;
+}
+
+.modal textarea {
+    height: 220px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    resize: vertical;
+}
+
+.modal input:focus, .modal textarea:focus {
+    border-color: var(--accent);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-actions-right {
+    display: flex;
+    gap: 10px;
+}
+
+.modal-actions button {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.btn-secondary {
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: #fff;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+    color: rgba(255,255,255,0.85);
+}
+
+.btn-outline:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+/* FOOTER */
+.footer {
+    margin-top: 20px;
+    color: rgba(255,255,255,0.4);
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+
+/* RESPONSIVE */
+@media (max-width: 850px) {
+    body {
+        overflow: auto;
+    }
+    .container {
+        height: auto;
+        min-height: 100vh;
+        flex-direction: column;
+        padding: 15px;
+    }
+    .sidebar {
+        width: 100%;
+        min-width: 0;
+        max-height: 400px;
+    }
+    .main {
+        min-height: 650px;
+        padding: 25px 15px;
+    }
+    .timer {
+        letter-spacing: -3px;
+    }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <!-- LEFT SIDEBAR -->
+    <aside class="sidebar glass">
+        <div class="logo">
+            <span>◈ TIMEKEEPER</span>
+        </div>
+        <div class="subtitle">Cloud-Synced Event Companion</div>
+
+        <!-- EVENT MANAGEMENT BAR -->
+        <div class="event-selector-box">
+            <div class="event-selector-header">
+                <span>SELECT SAVED EVENT</span>
+                <span id="syncStatus" style="font-size:10px; color:#a78bfa;">Ready</span>
+            </div>
+            <div class="event-selector-row">
+                <select id="eventDropdown" class="event-dropdown">
+                    <option value="">-- Loading events... --</option>
+                </select>
+                <button class="icon-btn" id="saveEventBtn" title="Lưu / Cập nhật sự kiện hiện tại">💾</button>
+                <button class="icon-btn" id="newEventBtn" title="Tạo sự kiện mới">➕</button>
+                <button class="icon-btn danger" id="deleteEventBtn" title="Xóa sự kiện đã chọn">🗑</button>
+            </div>
+        </div>
+
+        <div class="schedule-header">
+            <div class="schedule-title">CURRENT AGENDA</div>
+            <div class="header-actions">
+                <button class="json-btn" id="openJsonBtn" title="Import / Export Agenda bằng JSON">{ } JSON</button>
+                <button class="add-btn" id="addActivityBtn" title="Add new activity">+ Add</button>
+            </div>
+        </div>
+        <div class="schedule-list" id="scheduleList"></div>
+    </aside>
+
+    <!-- RIGHT MAIN CONTENT -->
+    <main class="main glass">
+        <div class="top-bar">
+            <div class="event-label" id="currentEventTitleBadge">EVENT MANAGEMENT SYSTEM</div>
+            <div class="top-bar-right">
+                <div class="clock" id="currentClock">00:00:00</div>
+                <button class="fullscreen-btn" id="fullscreenBtn" title="Bật toàn màn hình (Phím Esc để thoát)">⛶ Fullscreen</button>
+            </div>
+        </div>
+
+        <section class="timer-content">
+            <div class="status" id="status">
+                READY TO BEGIN
+            </div>
+            <h1 class="activity-heading" id="activityName">
+                Welcome to Your Event
+            </h1>
+            <div class="time-left-label">
+                TIME REMAINING
+            </div>
+            <div class="timer" id="timer">
+                00:00
+            </div>
+            <div class="activity-info" id="activityInfo">
+                Press Start Time Keeping when you're ready.
+            </div>
+
+            <div class="progress-section">
+                <div class="progress-label">
+                    <span>ACTIVITY PROGRESS</span>
+                    <span id="progressText">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- BUTTONS -->
+        <div class="controls">
+            <button class="primary" id="startBtn">
+                ▶ Start Time Keeping
+            </button>
+            <button id="pauseBtn" disabled>
+                ⏸ Pause
+            </button>
+            <button id="resetBtn">
+                ↻ Reset
+            </button>
+            <button id="syncBtn">
+                ⏱ Sync with Real Time
+            </button>
+        </div>
+
+        <div class="footer">
+            MAKE EVERY MINUTE COUNT.
+        </div>
+    </main>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast">Action notification</div>
+
+<!-- MODAL NEW EVENT -->
+<div class="modal-overlay" id="newEventModal">
+    <div class="modal">
+        <h3>Create New Event</h3>
+        <input type="text" id="newEventTitleInput" placeholder="Tên sự kiện (VD: Workshop AI 2026)" />
+        <div class="modal-actions" style="justify-content: flex-end;">
+            <button class="btn-secondary" id="modalCancelBtn">Hủy</button>
+            <button class="btn-primary" id="modalSaveBtn">Tạo mới</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL JSON AGENDA (IMPORT / EXPORT) -->
+<div class="modal-overlay" id="jsonModal">
+    <div class="modal large-modal">
+        <h3>Import / Export Agenda (JSON)</h3>
+        <p class="hint">Dán mảng JSON chứa các mục agenda (tự động tính <code>duration</code> nếu có <code>startTime</code> & <code>endTime</code>), hoặc sửa trực tiếp rồi nhấn <b>Áp dụng</b>.</p>
+        <textarea id="jsonTextarea" spellcheck="false" placeholder="[
+  { &quot;startTime&quot;: &quot;09:00&quot;, &quot;endTime&quot;: &quot;09:30&quot;, &quot;name&quot;: &quot;Check-in&quot;, &quot;duration&quot;: 30 }
+]"></textarea>
+        <div class="modal-actions">
+            <div>
+                <button class="btn-outline" id="jsonFormatBtn" title="Định dạng lại chuỗi JSON cho đẹp mắt">✨ Format</button>
+                <button class="btn-outline" id="jsonCopyBtn" title="Copy toàn bộ JSON vào clipboard">📋 Copy</button>
+            </div>
+            <div class="modal-actions-right">
+                <button class="btn-secondary" id="jsonCancelBtn">Đóng</button>
+                <button class="btn-primary" id="jsonApplyBtn">Áp dụng Agenda</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// =====================================
+// SUPABASE CLIENT INITIALIZATION
+// =====================================
+const SUPABASE_URL = "https://tsezmahzllvknllvxklf.supabase.co";
+const SUPABASE_KEY = "sb_publishable_FHafy9FjIVlQdGtJQn9VJw_4GBJgLjK";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// =====================================
+// DEFAULT / ACTIVE EVENT STATE
+// =====================================
+let currentEventId = null;
+let currentEventName = "Default Event";
+
+let schedule = [
+    { startTime: "12:30", endTime: "13:00", name: "Check-in", duration: 30 },
+    { startTime: "13:00", endTime: "13:05", name: "Welcoming", duration: 5 },
+    { startTime: "13:05", endTime: "13:15", name: "Introduction of Instructor", duration: 10 },
+    { startTime: "13:15", endTime: "13:45", name: "Ice-breaking Activity", duration: 30 },
+    { startTime: "13:45", endTime: "14:45", name: "Group Work", duration: 60 },
+    { startTime: "14:45", endTime: "15:00", name: "Break", duration: 15 },
+    { startTime: "15:00", endTime: "16:15", name: "Presentation & Role-playing", duration: 75 },
+    { startTime: "16:15", endTime: "16:30", name: "Break", duration: 15 },
+    { startTime: "16:30", endTime: "16:50", name: "Q&A", duration: 20 },
+    { startTime: "16:50", endTime: "17:00", name: "Wrap-up", duration: 10 }
+];
+
+let currentIndex = 0;
+let remainingSeconds = schedule[0] ? schedule[0].duration * 60 : 0;
+let isRunning = false;
+let isSyncMode = false;
+let isFinished = false;
+let interval = null;
+let lastScrolledIndex = -1;
+
+// =====================================
+// DOM ELEMENTS
+// =====================================
+const scheduleList = document.getElementById("scheduleList");
+const addActivityBtn = document.getElementById("addActivityBtn");
+const activityName = document.getElementById("activityName");
+const timer = document.getElementById("timer");
+const status = document.getElementById("status");
+const activityInfo = document.getElementById("activityInfo");
+const progressFill = document.getElementById("progressFill");
+const progressText = document.getElementById("progressText");
+const startBtn = document.getElementById("startBtn");
+const pauseBtn = document.getElementById("pauseBtn");
+const resetBtn = document.getElementById("resetBtn");
+const syncBtn = document.getElementById("syncBtn");
+
+const eventDropdown = document.getElementById("eventDropdown");
+const saveEventBtn = document.getElementById("saveEventBtn");
+const newEventBtn = document.getElementById("newEventBtn");
+const deleteEventBtn = document.getElementById("deleteEventBtn");
+const newEventModal = document.getElementById("newEventModal");
+const newEventTitleInput = document.getElementById("newEventTitleInput");
+const modalCancelBtn = document.getElementById("modalCancelBtn");
+const modalSaveBtn = document.getElementById("modalSaveBtn");
+const syncStatus = document.getElementById("syncStatus");
+const toast = document.getElementById("toast");
+const currentEventTitleBadge = document.getElementById("currentEventTitleBadge");
+
+// JSON MODAL ELEMENTS
+const openJsonBtn = document.getElementById("openJsonBtn");
+const jsonModal = document.getElementById("jsonModal");
+const jsonTextarea = document.getElementById("jsonTextarea");
+const jsonCancelBtn = document.getElementById("jsonCancelBtn");
+const jsonApplyBtn = document.getElementById("jsonApplyBtn");
+const jsonFormatBtn = document.getElementById("jsonFormatBtn");
+const jsonCopyBtn = document.getElementById("jsonCopyBtn");
+
+function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add("show");
+    setTimeout(() => toast.classList.remove("show"), 2800);
+}
+
+// =====================================
+// TIME HELPER FUNCTIONS
+// =====================================
+function parseTimeToMinutes(timeStr) {
+    const match = /^(\d{1,2}):(\d{2})$/.exec((timeStr || "").trim());
+    if (!match) return null;
+    const h = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+    return h * 60 + m;
+}
+
+function minutesToHHMM(totalMinutes) {
+    const normalized = ((totalMinutes % 1440) + 1440) % 1440;
+    const h = Math.floor(normalized / 60);
+    const m = normalized % 60;
+    return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+}
+
+function calculateDuration(startStr, endStr) {
+    const startMins = parseTimeToMinutes(startStr);
+    const endMins = parseTimeToMinutes(endStr);
+    if (startMins === null || endMins === null) return null;
+    let diff = endMins - startMins;
+    if (diff <= 0) diff += 1440;
+    return diff;
+}
+
+// =====================================
+// SUPABASE OPERATIONS
+// =====================================
+async function loadEventsList() {
+    syncStatus.textContent = "Fetching...";
+    try {
+        const { data, error } = await supabaseClient
+            .from("events")
+            .select("id, title, agenda, updated_at")
+            .order("updated_at", { ascending: false });
+
+        if (error) throw error;
+
+        eventDropdown.innerHTML = "";
+        if (!data || data.length === 0) {
+            const opt = document.createElement("option");
+            opt.value = "";
+            opt.textContent = "-- Chưa có sự kiện (Bấm ➕ để tạo) --";
+            eventDropdown.appendChild(opt);
+            currentEventId = null;
+            syncStatus.textContent = "0 events";
+            return;
+        }
+
+        data.forEach(evt => {
+            const opt = document.createElement("option");
+            opt.value = evt.id;
+            opt.textContent = evt.title || "Untitled Event";
+            eventDropdown.appendChild(opt);
+        });
+
+        if (!currentEventId || !data.some(e => e.id === currentEventId)) {
+            currentEventId = data[0].id;
+        }
+        eventDropdown.value = currentEventId;
+
+        const selectedEvt = data.find(e => e.id === currentEventId);
+        if (selectedEvt) {
+            applyLoadedEvent(selectedEvt);
+        }
+        syncStatus.textContent = "Synced";
+    } catch (err) {
+        console.error("Lỗi tải danh sách sự kiện:", err);
+        syncStatus.textContent = "Offline/Err";
+        showToast("⚠️ Không thể tải danh sách sự kiện từ Supabase");
+    }
+}
+
+function applyLoadedEvent(evt) {
+    currentEventId = evt.id;
+    currentEventName = evt.title || "Untitled Event";
+    currentEventTitleBadge.textContent = currentEventName.toUpperCase();
+
+    if (Array.isArray(evt.agenda) && evt.agenda.length > 0) {
+        schedule = evt.agenda;
+    } else {
+        schedule = [{ startTime: "09:00", endTime: "09:30", name: "Opening", duration: 30 }];
+    }
+
+    resetTimer();
+    renderSchedule();
+    showToast(`Đã nạp sự kiện: "${currentEventName}"`);
+}
+
+// Chọn sự kiện khác từ dropdown
+eventDropdown.addEventListener("change", async (e) => {
+    const selectedId = e.target.value;
+    if (!selectedId) return;
+
+    syncStatus.textContent = "Loading...";
+    try {
+        const { data, error } = await supabaseClient
+            .from("events")
+            .select("*")
+            .eq("id", selectedId)
+            .single();
+
+        if (error) throw error;
+        if (data) {
+            applyLoadedEvent(data);
+            syncStatus.textContent = "Synced";
+        }
+    } catch (err) {
+        console.error(err);
+        showToast("❌ Không thể nạp agenda cho sự kiện này");
+        syncStatus.textContent = "Error";
+    }
+});
+
+// Lưu / cập nhật sự kiện hiện tại
+saveEventBtn.addEventListener("click", async () => {
+    if (!currentEventId) {
+        openNewEventModal();
+        return;
+    }
+
+    syncStatus.textContent = "Saving...";
+    try {
+        const { error } = await supabaseClient
+            .from("events")
+            .update({
+                agenda: schedule,
+                updated_at: new Date().toISOString()
+            })
+            .eq("id", currentEventId);
+
+        if (error) throw error;
+        syncStatus.textContent = "Saved";
+        showToast("💾 Đã lưu thành công agenda vào Supabase!");
+    } catch (err) {
+        console.error(err);
+        syncStatus.textContent = "Save failed";
+        showToast("❌ Lỗi lưu dữ liệu: " + (err.message || "Unknown error"));
+    }
+});
+
+// Tạo sự kiện mới
+function openNewEventModal() {
+    newEventTitleInput.value = "";
+    newEventModal.classList.add("open");
+    setTimeout(() => newEventTitleInput.focus(), 100);
+}
+
+newEventBtn.addEventListener("click", openNewEventModal);
+modalCancelBtn.addEventListener("click", () => newEventModal.classList.remove("open"));
+
+modalSaveBtn.addEventListener("click", async () => {
+    const title = newEventTitleInput.value.trim();
+    if (!title) {
+        alert("Vui lòng nhập tên sự kiện!");
+        return;
+    }
+
+    syncStatus.textContent = "Creating...";
+    newEventModal.classList.remove("open");
+
+    const defaultNewAgenda = [
+        { startTime: "09:00", endTime: "09:30", name: "Welcome & Check-in", duration: 30 },
+        { startTime: "09:30", endTime: "10:30", name: "Keynote Session", duration: 60 },
+        { startTime: "10:30", endTime: "11:00", name: "Wrap-up & Networking", duration: 30 }
+    ];
+
+    try {
+        const { data, error } = await supabaseClient
+            .from("events")
+            .insert([
+                {
+                    title: title,
+                    agenda: defaultNewAgenda,
+                    updated_at: new Date().toISOString()
+                }
+            ])
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        currentEventId = data.id;
+        showToast(`✨ Đã tạo sự kiện mới: ${title}`);
+        await loadEventsList();
+    } catch (err) {
+        console.error(err);
+        showToast("❌ Lỗi khi tạo sự kiện mới: " + (err.message || "Unknown error"));
+        syncStatus.textContent = "Error";
+    }
+});
+
+// Xóa sự kiện
+deleteEventBtn.addEventListener("click", async () => {
+    if (!currentEventId) {
+        showToast("Không có sự kiện nào được chọn để xóa");
+        return;
+    }
+    const confirmDelete = confirm(`Bạn có chắc chắn muốn xóa sự kiện "${currentEventName}"?`);
+    if (!confirmDelete) return;
+
+    syncStatus.textContent = "Deleting...";
+    try {
+        const { error } = await supabaseClient
+            .from("events")
+            .delete()
+            .eq("id", currentEventId);
+
+        if (error) throw error;
+
+        showToast("🗑 Đã xóa sự kiện thành công!");
+        currentEventId = null;
+        await loadEventsList();
+    } catch (err) {
+        console.error(err);
+        showToast("❌ Lỗi khi xóa sự kiện: " + (err.message || "Unknown error"));
+        syncStatus.textContent = "Delete failed";
+    }
+});
+
+// =====================================
+// JSON MODAL LOGIC (IMPORT / EXPORT)
+// =====================================
+openJsonBtn.addEventListener("click", () => {
+    jsonTextarea.value = JSON.stringify(schedule, null, 2);
+    jsonModal.classList.add("open");
+});
+
+jsonCancelBtn.addEventListener("click", () => {
+    jsonModal.classList.remove("open");
+});
+
+jsonFormatBtn.addEventListener("click", () => {
+    try {
+        const parsed = JSON.parse(jsonTextarea.value.trim());
+        jsonTextarea.value = JSON.stringify(parsed, null, 2);
+    } catch (e) {
+        alert("JSON không hợp lệ: " + e.message);
+    }
+});
+
+jsonCopyBtn.addEventListener("click", () => {
+    navigator.clipboard.writeText(jsonTextarea.value).then(() => {
+        showToast("📋 Đã copy JSON vào clipboard");
+    }).catch(() => {
+        showToast("Không thể copy tự động, vui lòng Ctrl+C");
+    });
+});
+
+jsonApplyBtn.addEventListener("click", () => {
+    const raw = jsonTextarea.value.trim();
+    if (!raw) {
+        alert("Vui lòng nhập dữ liệu JSON!");
+        return;
+    }
+
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+            alert("Dữ liệu JSON phải là một mảng (Array) chứa ít nhất 1 hoạt động!");
+            return;
+        }
+
+        // Chuẩn hóa và tính toán lại các trường cần thiết
+        const sanitized = parsed.map((item, idx) => {
+            const start = item.startTime || item.start || "09:00";
+            const end = item.endTime || item.end || "09:30";
+            let dur = item.duration;
+            if (!dur) {
+                dur = calculateDuration(start, end) || 15;
+            }
+            return {
+                startTime: start,
+                endTime: end,
+                name: item.name || item.title || `Activity ${idx + 1}`,
+                duration: Number(dur) || 15
+            };
+        });
+
+        schedule = sanitized;
+        resetTimer();
+        renderSchedule();
+        jsonModal.classList.remove("open");
+        showToast(`✅ Đã nạp thành công ${schedule.length} hoạt động từ JSON! (Nhớ bấm 💾 để lưu)`);
+    } catch (e) {
+        alert("Lỗi cú pháp JSON: " + e.message);
+    }
+});
+
+
+// =====================================
+// SELECT / PREVIEW ACTIVITY
+// =====================================
+function selectActivity(index, fromInputFocus = false) {
+    if (index < 0 || index >= schedule.length) return;
+    currentIndex = index;
+    remainingSeconds = schedule[index].duration * 60;
+    isFinished = false;
+
+    if (isSyncMode) {
+        clearInterval(interval);
+        isSyncMode = false;
+    }
+
+    if (!isRunning) {
+        status.textContent = "PREVIEWING ACTIVITY";
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        pauseBtn.textContent = "⏸ Pause";
+    }
+
+    updateDisplay();
+    scrollToActiveActivity(true);
+}
+
+// =====================================
+// RENDER & UPDATE SCHEDULE SIDEBAR
+// =====================================
+function renderSchedule() {
+    scheduleList.innerHTML = "";
+
+    schedule.forEach((item, index) => {
+        const div = document.createElement("div");
+        div.className = "activity";
+        if (index === currentIndex && !isFinished) {
+            div.classList.add("active");
+        }
+        if (index < currentIndex || isFinished) {
+            div.classList.add("completed");
+        }
+
+        div.innerHTML = `
+            <div class="activity-top-row">
+                <div class="activity-time-inputs">
+                    <input type="text" class="time-input start-input" value="${item.startTime}" placeholder="HH:MM" title="Start Time (HH:MM)" />
+                    <span>-</span>
+                    <input type="text" class="time-input end-input" value="${item.endTime}" placeholder="HH:MM" title="End Time (HH:MM)" />
+                    <span class="duration-badge">(${item.duration}m)</span>
+                </div>
+                <button class="delete-btn" title="Delete Activity" ${schedule.length <= 1 ? "disabled" : ""}>✕</button>
+            </div>
+            <div class="activity-bottom-row">
+                <input type="text" class="name-input" value="${item.name.replace(/"/g, '&quot;')}" placeholder="Activity Name" title="Click to edit activity name" />
+                <span class="completed-check">✓</span>
+            </div>
+        `;
+
+        const startInput = div.querySelector(".start-input");
+        const endInput = div.querySelector(".end-input");
+        const nameInput = div.querySelector(".name-input");
+        const durationBadge = div.querySelector(".duration-badge");
+        const deleteBtn = div.querySelector(".delete-btn");
+
+        // Click on activity card to preview / switch to this item
+        div.addEventListener("click", (e) => {
+            if (e.target.closest(".delete-btn")) return;
+            selectActivity(index);
+        });
+
+        // Also select when focusing inputs
+        nameInput.addEventListener("focus", () => selectActivity(index, true));
+        startInput.addEventListener("focus", () => selectActivity(index, true));
+        endInput.addEventListener("focus", () => selectActivity(index, true));
+
+        nameInput.addEventListener("input", (e) => {
+            item.name = e.target.value;
+            if (index === currentIndex && !isFinished) {
+                updateHeadingText(item.name);
+            }
+        });
+
+        function handleTimeUpdate() {
+            const startMins = parseTimeToMinutes(startInput.value);
+            const endMins = parseTimeToMinutes(endInput.value);
+
+            if (startMins !== null && endMins !== null) {
+                item.startTime = minutesToHHMM(startMins);
+                item.endTime = minutesToHHMM(endMins);
+                startInput.value = item.startTime;
+                endInput.value = item.endTime;
+
+                const newDuration = calculateDuration(item.startTime, item.endTime);
+                if (newDuration && newDuration > 0) {
+                    item.duration = newDuration;
+                    durationBadge.textContent = `(${item.duration}m)`;
+
+                    if (index === currentIndex && !isFinished) {
+                        if (!isRunning) {
+                            remainingSeconds = item.duration * 60;
+                        } else if (remainingSeconds > item.duration * 60) {
+                            remainingSeconds = item.duration * 60;
+                        }
+                        updateMainPanel();
+                    }
+                    if (isSyncMode) {
+                        syncWithRealTime();
+                    }
+                }
+            } else {
+                startInput.value = item.startTime;
+                endInput.value = item.endTime;
+            }
+        }
+
+        startInput.addEventListener("change", handleTimeUpdate);
+        endInput.addEventListener("change", handleTimeUpdate);
+
+        deleteBtn.addEventListener("click", () => {
+            if (schedule.length <= 1) return;
+            schedule.splice(index, 1);
+
+            if (index < currentIndex) {
+                currentIndex--;
+            } else if (index === currentIndex) {
+                if (currentIndex >= schedule.length) {
+                    currentIndex = schedule.length - 1;
+                }
+                remainingSeconds = schedule[currentIndex].duration * 60;
+            }
+
+            renderSchedule();
+            updateMainPanel();
+            scrollToActiveActivity(true);
+        });
+
+        scheduleList.appendChild(div);
+    });
+
+    scrollToActiveActivity();
+}
+
+function updateScheduleClasses() {
+    const items = scheduleList.querySelectorAll(".activity");
+    if (items.length !== schedule.length) {
+        renderSchedule();
+        return;
+    }
+    items.forEach((div, index) => {
+        div.classList.toggle("active", index === currentIndex && !isFinished);
+        div.classList.toggle("completed", index < currentIndex || isFinished);
+    });
+    scrollToActiveActivity();
+}
+
+function scrollToActiveActivity(force = false) {
+    if (!force && lastScrolledIndex === currentIndex) return;
+    lastScrolledIndex = currentIndex;
+
+    const activeEl = scheduleList.querySelector(".activity.active");
+    if (activeEl) {
+        activeEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+}
+
+// =====================================
+// ADD NEW ACTIVITY
+// =====================================
+addActivityBtn.addEventListener("click", () => {
+    const lastItem = schedule[schedule.length - 1];
+    const startStr = lastItem ? lastItem.endTime : "09:00";
+    const startMins = parseTimeToMinutes(startStr) ?? 540;
+    const defaultDuration = 15;
+    const endStr = minutesToHHMM(startMins + defaultDuration);
+
+    schedule.push({
+        startTime: startStr,
+        endTime: endStr,
+        name: "New Activity",
+        duration: defaultDuration
+    });
+
+    if (isFinished) {
+        isFinished = false;
+        currentIndex = schedule.length - 1;
+        remainingSeconds = defaultDuration * 60;
+        startBtn.disabled = false;
+        status.textContent = "READY TO CONTINUE";
+    }
+
+    renderSchedule();
+    updateMainPanel();
+
+    setTimeout(() => {
+        scheduleList.scrollTop = scheduleList.scrollHeight;
+        const inputs = scheduleList.querySelectorAll(".name-input");
+        if (inputs.length > 0) {
+            const lastInput = inputs[inputs.length - 1];
+            lastInput.focus();
+            lastInput.select();
+        }
+    }, 50);
+});
+
+// =====================================
+// FORMAT TIME
+// =====================================
+function formatTime(seconds) {
+    const safeSecs = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(safeSecs / 3600);
+    const minutes = Math.floor((safeSecs % 3600) / 60);
+    const secs = safeSecs % 60;
+
+    if (hours > 0) {
+        return [
+            hours,
+            String(minutes).padStart(2, "0"),
+            String(secs).padStart(2, "0")
+        ].join(":");
+    }
+
+    return (
+        String(minutes).padStart(2, "0") +
+        ":" +
+        String(secs).padStart(2, "0")
+    );
+}
+
+// =====================================
+// UPDATE MAIN DISPLAY
+// =====================================
+function updateHeadingText(text) {
+    const heading = activityName;
+    heading.textContent = text || "Untitled Activity";
+    const len = (text || "").length;
+    if (len > 110) {
+        heading.style.fontSize = "clamp(17px, 2vw, 24px)";
+        heading.style.lineHeight = "1.3";
+    } else if (len > 65) {
+        heading.style.fontSize = "clamp(21px, 2.8vw, 32px)";
+        heading.style.lineHeight = "1.25";
+    } else if (len > 35) {
+        heading.style.fontSize = "clamp(26px, 3.6vw, 42px)";
+        heading.style.lineHeight = "1.2";
+    } else {
+        heading.style.fontSize = "clamp(32px, 5vw, 60px)";
+        heading.style.lineHeight = "1.15";
+    }
+}
+
+function updateMainPanel() {
+    if (isFinished || schedule.length === 0) return;
+
+    const activity = schedule[currentIndex];
+    updateHeadingText(activity.name);
+    timer.textContent = formatTime(remainingSeconds);
+    activityInfo.textContent =
+        `${activity.startTime} - ${activity.endTime}  •  ${activity.duration} minutes`;
+
+    const totalSeconds = Math.max(1, activity.duration * 60);
+    const progress = Math.min(100, Math.max(0, ((totalSeconds - remainingSeconds) / totalSeconds) * 100));
+
+    progressFill.style.width = progress + "%";
+    progressText.textContent = Math.floor(progress) + "%";
+
+    timer.classList.toggle(
+        "warning",
+        remainingSeconds <= 60 && isRunning
+    );
+}
+
+function updateDisplay() {
+    updateMainPanel();
+    updateScheduleClasses();
+}
+
+// =====================================
+// START TIMER
+// =====================================
+function startTimer() {
+    if (isRunning || isFinished || schedule.length === 0) return;
+
+    isRunning = true;
+    isSyncMode = false;
+    status.textContent = "● EVENT IN PROGRESS";
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+
+    clearInterval(interval);
+    interval = setInterval(() => {
+        remainingSeconds--;
+
+        if (remainingSeconds <= 0) {
+            remainingSeconds = 0;
+            updateDisplay();
+            nextActivity();
+            return;
+        }
+
+        updateDisplay();
+    }, 1000);
+}
+
+// =====================================
+// NEXT ACTIVITY
+// =====================================
+function nextActivity() {
+    if (currentIndex < schedule.length - 1) {
+        currentIndex++;
+        remainingSeconds = schedule[currentIndex].duration * 60;
+        updateDisplay();
+    } else {
+        finishEvent();
+    }
+}
+
+// =====================================
+// SYNC WITH REAL TIME
+// =====================================
+function syncWithRealTime() {
+    if (schedule.length === 0) return;
+
+    const now = new Date();
+    const currentSecondsOfDay =
+        now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+
+    const firstStartMins = parseTimeToMinutes(schedule[0].startTime) ?? 0;
+    const lastEndMins = parseTimeToMinutes(schedule[schedule.length - 1].endTime) ?? 1440;
+
+    let matchedIndex = -1;
+    let matchedEndSeconds = 0;
+
+    for (let i = 0; i < schedule.length; i++) {
+        const sMins = parseTimeToMinutes(schedule[i].startTime);
+        const eMins = parseTimeToMinutes(schedule[i].endTime);
+        if (sMins === null || eMins === null) continue;
+
+        const sSecs = sMins * 60;
+        let eSecs = eMins * 60;
+        if (eSecs <= sSecs) eSecs += 86400;
+
+        if (currentSecondsOfDay >= sSecs && currentSecondsOfDay < eSecs) {
+            matchedIndex = i;
+            matchedEndSeconds = eSecs;
+            break;
+        }
+    }
+
+    if (matchedIndex === -1 && currentSecondsOfDay < firstStartMins * 60) {
+        status.textContent = "EVENT NOT STARTED";
+        activityInfo.textContent =
+            `It's not time yet! The event starts at ${schedule[0].startTime}.`;
+        return;
+    }
+
+    if (matchedIndex === -1 && currentSecondsOfDay >= lastEndMins * 60) {
+        clearInterval(interval);
+        currentIndex = schedule.length - 1;
+        isRunning = false;
+        isSyncMode = false;
+        isFinished = true;
+        status.textContent = "EVENT COMPLETED 🎉";
+        activityName.textContent = "Thank You Everyone!";
+        timer.textContent = "00:00";
+        activityInfo.textContent = "The scheduled event has ended.";
+        progressFill.style.width = "100%";
+        progressText.textContent = "100%";
+        startBtn.disabled = true;
+        pauseBtn.disabled = true;
+        updateScheduleClasses();
+        return;
+    }
+
+    if (matchedIndex === -1) {
+        status.textContent = "WAITING FOR NEXT SLOT";
+        return;
+    }
+
+    currentIndex = matchedIndex;
+    remainingSeconds = matchedEndSeconds - currentSecondsOfDay;
+
+    clearInterval(interval);
+    isFinished = false;
+    isRunning = true;
+    isSyncMode = true;
+
+    status.textContent = "● LIVE TIME SYNC ACTIVE";
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+    pauseBtn.textContent = "⏸ Pause";
+
+    updateDisplay();
+
+    interval = setInterval(() => {
+        syncWithRealTime();
+    }, 1000);
+}
+
+// =====================================
+// FINISH EVENT
+// =====================================
+function finishEvent() {
+    clearInterval(interval);
+    isRunning = false;
+    isSyncMode = false;
+    isFinished = true;
+
+    status.textContent = "EVENT COMPLETED 🎉";
+    activityName.textContent = "Thank You Everyone!";
+    timer.textContent = "00:00";
+    activityInfo.textContent = "All activities have been completed.";
+    progressFill.style.width = "100%";
+    progressText.textContent = "100%";
+
+    startBtn.disabled = true;
+    pauseBtn.disabled = true;
+
+    updateScheduleClasses();
+}
+
+// =====================================
+// PAUSE / RESUME
+// =====================================
+function togglePause() {
+    if (isRunning) {
+        clearInterval(interval);
+        isRunning = false;
+        isSyncMode = false;
+        status.textContent = "⏸ TIMER PAUSED";
+        pauseBtn.textContent = "▶ Resume";
+        startBtn.disabled = true;
+        timer.classList.remove("warning");
+    } else {
+        startTimer();
+        pauseBtn.textContent = "⏸ Pause";
+    }
+}
+
+// =====================================
+// RESET
+// =====================================
+function resetTimer() {
+    clearInterval(interval);
+    currentIndex = 0;
+    remainingSeconds = schedule.length > 0 ? schedule[0].duration * 60 : 0;
+    isRunning = false;
+    isSyncMode = false;
+    isFinished = false;
+
+    status.textContent = "READY TO BEGIN";
+    startBtn.disabled = false;
+    startBtn.textContent = "▶ Start Time Keeping";
+    pauseBtn.disabled = true;
+    pauseBtn.textContent = "⏸ Pause";
+    timer.classList.remove("warning");
+
+    updateDisplay();
+    scrollToActiveActivity(true);
+}
+
+// =====================================
+// LIVE CLOCK
+// =====================================
+function updateClock() {
+    const now = new Date();
+    document.getElementById("currentClock")
+        .textContent = now.toLocaleTimeString();
+}
+
+setInterval(updateClock, 1000);
+updateClock();
+
+// =====================================
+// BUTTON EVENTS
+// =====================================
+startBtn.addEventListener("click", startTimer);
+pauseBtn.addEventListener("click", togglePause);
+resetBtn.addEventListener("click", resetTimer);
+syncBtn.addEventListener("click", syncWithRealTime);
+
+// =====================================
+// FULLSCREEN LOGIC (CLICK & ESC)
+// =====================================
+const fullscreenBtn = document.getElementById("fullscreenBtn");
+
+function toggleFullscreen() {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        // Vào chế độ toàn màn hình
+        const elem = document.documentElement;
+        if (elem.requestFullscreen) {
+            elem.requestFullscreen().catch(err => {
+                showToast("⚠️ Không thể bật toàn màn hình: " + err.message);
+            });
+        } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
+        }
+    } else {
+        // Thoát toàn màn hình
+        if (document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+    }
+}
+
+function updateFullscreenBtnUI() {
+    const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    if (isFull) {
+        fullscreenBtn.innerHTML = "🗗 Exit Fullscreen (Esc)";
+        fullscreenBtn.title = "Thoát toàn màn hình (Phím Esc)";
+    } else {
+        fullscreenBtn.innerHTML = "⛶ Fullscreen";
+        fullscreenBtn.title = "Bật toàn màn hình (Phím Esc để thoát)";
+    }
+}
+
+fullscreenBtn.addEventListener("click", toggleFullscreen);
+
+// Bắt sự kiện thay đổi trạng thái fullscreen (bao gồm cả khi người dùng nhấn Esc trình duyệt)
+document.addEventListener("fullscreenchange", updateFullscreenBtnUI);
+document.addEventListener("webkitfullscreenchange", updateFullscreenBtnUI);
+
+// Bắt phím Esc để chắc chắn thoát fullscreen và cập nhật trạng thái
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" || e.key === "Esc") {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(() => {});
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+    }
+});
+
+// INITIAL LOAD
+loadEventsList();
+</script>
+</body>
+</html>
